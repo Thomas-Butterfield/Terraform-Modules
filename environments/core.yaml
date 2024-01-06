@@ -1,0 +1,355 @@
+location: westus
+
+naming:
+  cloudprefix: bt
+  locationcode: wus
+  envlabel: prd
+  rgsuffix: rg
+  resourcelabels:
+    # Override default labels by adding the appropriate label and value below
+    label_override_placeholder: SEE_README_FOR_OVERRIDE_NAMES
+  naming_convention:
+    delimiter: "-"
+  vmnameprefix: bt-vm
+
+resource_defaults:
+  virtual_machines:
+    use_azmanaged_storage_for_boot_diagnostics: true
+
+tags:
+  environment: "Production"
+  organization: "BTECH"
+
+resource_groups:
+
+  hubnetwork:
+    name: "rg-westus-hub-net"
+    enabled: true
+    reuse: true
+
+  sharedresources:
+    naming_convention:
+      name_mask: "{name}"
+    name: "rg-wus-btech-prdbtechshared"
+    enabled: true
+    reuse: false
+
+storageaccounts:
+
+  st_btechshared_us1:
+    enabled: true
+    name: "stbtus1prdsharedbtech1"
+    resource_group_key: "btechshared"
+    account_tier: Standard
+    access_tier: Hot
+    account_replication_type: LRS
+    account_kind: StorageV2
+    containers:
+      cont1:
+        name: "btechimage-scripts"
+        container_access_type: "blob"
+        storage_blobs:
+          script_file:
+            name: "btechimage_script_sysprep.ps1"
+            source: "sysprep_ps1.txt"
+
+networking:
+
+  vnets:
+
+    btech_vnet:
+      enabled: true
+      reuse: true
+      name: "vnet-wus-btech-prdspoke-01"
+      rg_name: "rg-wus-btech-prdnet"
+
+      # naming_convention:
+      #   name_mask: "{name}"
+      # name: "vnet-wus-btech-prdspoke-02"
+      # resource_group_key: "btechshared"
+      # address_prefixes: ["172.20.4.0/22"]
+      # dns_servers: ["172.20.128.70", "172.20.128.71"]
+
+      subnets:
+
+        bastion_subnet:
+          name: AzureBastionSubnet
+          enabled: false
+          reuse: false
+          address_prefixes: ["172.20.7.0/26"]
+
+        subnet_snet_us1_prd_vdi_01:
+          name: snet-us1-prd01
+          reuse: true
+          enabled: true
+        
+        subnet_btechshared:
+          naming_convention:
+            name_mask: "{name}"
+          name: snet-us1-prd-btechshared
+          enabled: true
+          reuse: false
+          address_prefixes: ["172.20.5.0/27"]
+          service_endpoints: ["Microsoft.Storage"]
+          private_endpoint_network_policies_enabled: false
+          private_link_service_network_policies_enabled: false
+          route_table_key: "btech_rt"
+          nsg_key: "nsg_btech_shared"
+
+    hub_vnet:
+      enabled: false
+      reuse: true
+      use_sharedsvc_provider: true
+      name: "btech-hub-westus"
+      rg_name: "btech-connectivity"
+
+  route_tables:
+
+    btech_rt:
+      name: "route-wus-btech-prd01"
+      rg_name: "rg-wus-btech-prdnet"
+      enabled: true
+      reuse: true
+
+  private_endpoints:
+
+    pe1:
+      enabled: true
+      vnet_key: "btech_vnet"
+      subnet_keys: ["subnet_btechshared"]
+      resource_group_key: "btechnetwork"  # Key of resource group of the vnet
+      storage_accounts:
+        st1:
+          storage_account_key: "st_btechshared_us1"
+          name: "pe-stbtus1prdsharedbtech1-blob"
+          nic_name: "pe-stbtus1prdsharedbtech1-nic"
+          resource_group_key: "btechshared"  # If not provided, PE RG will be VNet RG
+          resource_id: "/subscriptions/<subscriptionID>/resourceGroups/rg-wus-btech-prdbtechshared/providers/Microsoft.Storage/storageAccounts/stbtus1prdsharedbtech1"
+          private_service_connection:
+            name: "psc1"
+            subresource_names: "blob"  # only one subresource name at a time. Need to create a new PEndpoint node to create for something else
+            private_dns_zone_id: "/subscriptions/<subscriptionID>/resourceGroups/btech-connectivity/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net"
+            private_dns_zone_name: "privatelink.blob.core.windows.net"
+
+  network_security_groups:
+
+    nsg_btech_shared:
+      naming_convention:
+        name_mask: "{name}"
+      name: "nsg-wus-btech-btechshared"
+      resource_group_key: "btechshared"
+      enabled: true
+      rules:
+        AllowStorageInbound:
+          name: "AllowSMB445Inbound"
+          priority: "100"
+          direction: "Inbound"
+          access: "Allow"
+          protocol: "*"
+          source_port_range: "*"
+          destination_port_range: "445"
+          source_address_prefix: "Storage.WestUS"
+          destination_address_prefix: "*"
+        AllowAzImgBuilderInboundWSMAN:
+          name: "AllowAzImgeBuildProxyVM"
+          priority: "400"
+          direction: "Inbound"
+          access: "Allow"
+          protocol: "Tcp"
+          source_port_range: "*"
+          destination_port_range: "60000-60001"
+          source_address_prefix: "AzureLoadBalancer"
+          destination_address_prefix: "VirtualNetwork"
+
+    nsg_btech_shared2:
+      naming_convention:
+        name_mask: "{name}"
+      name: "nsg-wus-btech-btechshared2"
+      resource_group_key: "btechshared"
+      enabled: true
+      rules:
+        AllowStorageInbound:
+          name: "AllowSMB445Inbound"
+          priority: "100"
+          direction: "Inbound"
+          access: "Allow"
+          protocol: "*"
+          source_port_range: "*"
+          destination_port_range: "445"
+          source_address_prefix: "Storage.WestUS"
+          destination_address_prefix: "*"
+
+  virtual_network_peering:
+
+    btech_vnet_to_hub_vnet:
+      enabled: false
+      resource_group_key: "btechnetwork"
+      vnet_key: "btech_vnet"
+      remote_vnet_key: "hub_vnet"
+      use_sharedsvc_provider: false
+    hub_vnet_to_btech_vnet:
+      enabled: false
+      rg_name: "btech-connectivity"
+      vnet_key: "hub_vnet"
+      remote_vnet_key: "btech_vnet"
+      use_sharedsvc_provider: true
+
+shared_image_galleries:
+
+  shrdimg_gallery1:
+    name: "simgus1prdbtechimages01"
+    enabled: true
+    resource_group_key: "btechshared"
+    description: "btech Images"
+
+shared_images:
+
+  shrdimg_brazil_erp:
+    name: "Windows11ImageDef"
+    location: "westus"
+    enabled: true
+    reuse: false
+    resource_group_key: "btechshared"
+    shared_image_gallery_key: "shrdimg_gallery1"
+    os_type: "Windows"
+    hyper_v_generation: V2
+    publisher: "BTECH"
+    offer: "win11"
+    sku: "22h2-btech-m365"
+    accelerated_network_support_enabled: false
+    specialized: false
+    trusted_launch_enabled: true
+
+loganalytics:
+
+  la1:
+    naming_convention:
+      name_mask: "{name}"
+    name: "log-bt-us1-prd-btech"
+    enabled: true
+    resource_group_key: "btechshared"
+    sku: PerGB2018
+    retention: 90
+
+managedid:
+
+  azimgbuild:
+    name: "az-img-build"
+    naming_convention:
+      name_mask: "{name}"
+    enabled: true
+    resource_group_key: "btechshared"
+    location: "westus"
+
+custom_roles:
+
+  az_img_build_role:
+    name: "Az-Image-Builder-Custom-Role"
+    description: "Custom Role For Azure Image Builder access to create resources for the image build process"
+    enabled: true
+    permissions:
+      actions: [
+        "Microsoft.Compute/galleries/read",
+        "Microsoft.Compute/galleries/images/read",
+        "Microsoft.Compute/galleries/images/versions/read",
+        "Microsoft.Compute/galleries/images/versions/write",
+        "Microsoft.Compute/images/write",
+        "Microsoft.Compute/images/read",
+        "Microsoft.Compute/images/delete",
+        "Microsoft.Network/virtualNetworks/read",
+        "Microsoft.Network/virtualNetworks/subnets/join/action"
+      ]
+      notActions: []
+      dataActions: []
+      notDataActions: []
+      scopes: [
+        "/subscriptions/98e127c8-bc4b-4cc4-9646-0f2b59c31d0d",
+        "/subscriptions/98e127c8-bc4b-4cc4-9646-0f2b59c31d0d/resourceGroups/rg-wus-btech-prdbtechshared",
+        "/subscriptions/538d4042-5c5a-42d6-abfb-831ce89a703e",
+        "/providers/Microsoft.Management/managementGroups/btech"
+      ]
+
+role_assignments:
+
+  ra1:
+    scope: "subscription"
+    mode: "custom"
+    enabled: true
+    role_mappings:
+      az_img_build_role:
+        managed_identity_keys:
+          id1: "azimgbuild"
+
+virtual_machine_groups:
+
+  btfs_development_group:
+    vm_count:
+      vm-1: 1
+    named_vms: true
+    enabled: false
+    vm_name_prefix: "btprodvm"
+    #zones: ["1","2","3"]
+    custom_id: "/subscriptions/<subscriptionID>/resourceGroups/rg-wus-btech-prdbtechshared/providers/Microsoft.Compute/galleries/simgus1prdbtechimages01/images/Windows11ImageDef"
+    virtual_machine:
+      resource_group_key: "sharedresources"
+      os_type: windows
+      provision_vm_agent: true
+
+      network_interfaces:
+        nic0:
+          vm_setting_key: "windows"
+          vnet_key: "btech_vnet"
+          subnet_key: "subnet_btfs_dev"
+          primary: true
+          naming_convention:
+            postfix: "01"
+          enable_ip_forwarding: false
+
+      virtual_machine_settings:
+        windows:
+          naming_convention:
+            name_mask: "{object_name_prefix}{object_count}"
+          # name: "us1prditop-0"
+          size: "Standard_E4ds_v5"
+          admin_username: "" # Leave Blank - Supplied In Secrets
+          admin_password: "" # Leave Blank - Supplied In Secrets
+          license_type: "Windows_Client"
+          network_interface_keys: ["nic0"]
+
+          os_disk:
+            naming_convention:
+              postfix: "01"
+            caching: "ReadWrite"
+            storage_account_type: "StandardSSD_LRS"
+
+          identity: # !!! Enable This If Using AAD Join or Domain Join Will Fail !!! #
+            type: "SystemAssigned"
+
+      data_disks:
+        data1:
+          vm_setting_key: "windows"
+          naming_convention:
+            name_mask: "disk{delimiter}{referenced_name}{delimiter}data{delimiter}01"
+          storage_account_type: "StandardSSD_LRS"
+          create_option: "Empty"
+          disk_size_gb: "32"
+          caching: "ReadOnly"
+          lun: 0
+
+    virtual_machine_extensions:
+      AADLoginForWindows:
+        enabled: true
+        name: "AADLoginForWindows"
+      btech_DSC_Extension:
+        enabled: true
+        name: "btech_DSC_Extension"
+        modulesURL: "https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_09-08-2022.zip"
+        host_pool:
+          host_pool_key: "hostpool_personal_btfs_dev"
+          getTokenFromKeyvault: false
+      LegacyADLoginForWindows:
+        enabled: false
+      AmdGpuDriverWindows:
+        enabled: false
+      custom_script:
+        enabled: false

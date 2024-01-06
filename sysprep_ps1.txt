@@ -1,0 +1,5 @@
+write-output "starting Sysprep"
+del /q /f C:\windows\panther
+Start-Process -FilePath C:\Windows\System32\Sysprep\Sysprep.exe -ArgumentList '/oobe /generalize /mode:vm /quiet /shutdown'
+# C:\Windows\System32\Sysprep\sysprep.exe /oobe /generalize /mode:vm /shutdown
+write-output "started Sysprep"

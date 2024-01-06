@@ -1,0 +1,298 @@
+resource_groups:
+
+  rg_app:
+    naming_convention:
+      name_mask: "{name}"
+    name: "rg-westus-prd-app"
+    enabled: true
+
+
+storageaccounts:
+
+  st_app:
+    enabled: true
+    name: "stbtwusapp01"
+    resource_group_key: "rg_app"
+    account_tier: Premium
+    access_tier: Hot
+    account_replication_type: LRS
+    account_kind: FileStorage
+    network:
+      bypass: ["AzureServices"]
+      default_action: Deny
+      subnets:
+        snet-westus-prd-appshared2: 
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-appshared2"
+        snet-westus-prd-appshared:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-appshared"
+    allow_nested_items_to_be_public: false
+    cross_tenant_replication_enabled: false
+    enable_https_traffic_only: true
+    public_network_access_enabled: true
+    large_file_share_enabled: true
+    share_properties:
+      retention_policy:
+        days: 7
+      smb:
+        multichannel_enabled: true
+    azure_files_authentication:
+      directory_type: "AADKERB"
+      active_directory:
+        domain_name: "<domain-name>"
+        domain_guid: "<domain-guid>"
+        forest_name: " "
+        netbios_domain_name: " "
+        domain_sid: " "
+        storage_sid: " "
+    file_shares:
+      sync_profiles_fs:
+        name: "profiles"
+        quota: "100"
+
+  st_appstd:
+    enabled: true
+    name: "stbtwusapp"
+    resource_group_key: "rg_app"
+    account_tier: Standard
+    access_tier: Hot
+    account_replication_type: ZRS
+    account_kind: StorageV2
+    network:
+      bypass: ["AzureServices"]
+      default_action: Deny
+      subnets:
+        infra-shared-services: 
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-az1-npd-net-btech-itmanaged/providers/Microsoft.Network/virtualNetworks/vnet-az1-npd-spoke-btech-itmanaged-01/subnets/snet-az1-npd-01"
+        snet-az1-core-addns:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/mg-hd-connectivity/providers/Microsoft.Network/virtualNetworks/mg-hd-hub-eastus/subnets/snet-az1-core-addns"
+        snet-westus-prd-appshared2: 
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-appshared2"
+        snet-westus-prd-appshared:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-appshared"
+        snet-westus-prd-spt-pool:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-spt-pool"
+        snet-westus-prd01:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd01"
+        snet-westus-prd-functions:
+          remote_subnet_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-westus/providers/Microsoft.Network/virtualNetworks/vnet-westus/subnets/snet-westus-prd-functions"
+    allow_nested_items_to_be_public: false
+    cross_tenant_replication_enabled: false
+    enable_https_traffic_only: true
+    public_network_access_enabled: true
+    large_file_share_enabled: true
+    share_properties:
+      retention_policy:
+        days: 7
+      #smb:
+        #multichannel_enabled: false
+    # azure_files_authentication:
+    #   directory_type: "AADKERB"
+    #   active_directory:
+    #     domain_name: "<domainName>"
+    #     domain_guid: "<domainGUID>"
+    #     forest_name: " "
+    #     netbios_domain_name: " "
+    #     domain_sid: " "
+    #     storage_sid: " "
+    file_shares:
+      sync_profiles_fs:
+        name: "profiles"
+        quota: "100"
+
+
+networking:
+
+  private_endpoints:
+
+    pe_app:
+      enabled: true
+      vnet_key: "app_vnet"
+      subnet_keys: ["subnet_appshared2"]
+      resource_group_key: "appnetwork"  # Key of resource group of the vnet
+      storage_accounts:
+        st_sync:
+          storage_account_key: "st_app"
+          name: "pe-stbtwusappapp01-file"
+          nic_name: "pe-stbtwusappapp01-nic"
+          resource_group_key: "rg_app"  # If not provided, PE RG will be VNet RG
+          resource_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-us1-btech-prdapp/providers/Microsoft.Storage/storageAccounts/stbtwusapp01"
+          private_service_connection:
+            name: "psc1"
+            subresource_names: "file"  # only one subresource name at a time. Need to create a new PEndpoint node to create for something else
+            private_dns_zone_id: "/subscriptions/<subscriptionId>/resourceGroups/mg-hd-connectivity/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net"
+            private_dns_zone_name: "privatelink.file.core.windows.net"
+
+    pe_appstd:
+      enabled: true
+      vnet_key: "app_vnet"
+      subnet_keys: ["subnet_appshared2"]
+      resource_group_key: "appnetwork"  # Key of resource group of the vnet
+      storage_accounts:
+        st_sync:
+          storage_account_key: "st_appstd"
+          name: "pe-stbtwusapp-file"
+          nic_name: "pe-stbtwusapp-nic"
+          resource_group_key: "rg_app"  # If not provided, PE RG will be VNet RG
+          resource_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-us1-btech-prdapp/providers/Microsoft.Storage/storageAccounts/stbtwusapp"
+          private_service_connection:
+            name: "psc1"
+            subresource_names: "file"  # only one subresource name at a time. Need to create a new PEndpoint node to create for something else
+            private_dns_zone_id: "/subscriptions/<subscriptionId>/resourceGroups/mg-hd-connectivity/providers/Microsoft.Network/privateDnsZones/privatelink.file.core.windows.net"
+            private_dns_zone_name: "privatelink.file.core.windows.net"
+
+azure_virtual_desktops:
+
+  host_pools:
+
+    hostpool_app:
+      enabled: true
+      resource_group_key: "rg_app"
+      naming_convention:
+        name_mask: "{name}"
+      name: "btech-app-Pooled-Host-Pool"
+      type: "Pooled"
+      start_vm_on_connect: true
+      validate_environment: false
+      load_balancer_type: "DepthFirst"
+      friendly_name: "HD-app-Production-Host-Pool"
+      description: "Created through Terraform"
+      custom_rdp_properties: "drivestoredirect:s:;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:0;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:0;screen mode id:i:2;audiocapturemode:i:1;"
+      maximum_sessions_allowed: 4
+      registration_info:
+        rotation_days: 30
+
+  workspaces:
+
+    workspace_app:
+      naming_convention:
+        name_mask: "{name}"
+      name: "btech-app-Pooled-Workspace"
+      enabled: true
+      resource_group_key: "rg_app"
+      friendly_name: "App Pool West US"
+
+  application_groups:
+
+    appgroup_app:
+      naming_convention:
+        name_mask: "{name}"
+      name: "btech-app-Pooled-Desktop-App-Group"
+      enabled: true
+      resource_group_key: "rg_app"
+      host_pool_key: "hostpool_app"
+      workspace_key: "workspace_app"
+      type: "Desktop"
+      friendly_name: "btech app Desktop Application Group"
+      description: "Desktop Application Group created through Terraform"
+      default_desktop_display_name: "app-desktop"
+
+shared_images:
+
+  shrdimg_app:
+    name: "Windows11appapp"
+    enabled: true
+    reuse: false
+    resource_group_key: "appshared"
+    shared_image_gallery_key: "shrdimg_gallery1"
+    os_type: "Windows"
+    hyper_v_generation: V2
+    publisher: "btech"
+    offer: "win11-app"
+    sku: "22h2-app-m365"
+    accelerated_network_support_enabled: false
+    specialized: false
+
+virtual_machine_groups:
+
+  btech_app_group:
+    vm_count:
+      vm1: 1
+      vm2: 2
+    named_vms: true
+    enabled: true
+    vm_name_prefix: "us1appapp"
+    zones: ["1","2","3"]
+    custom_id: "/subscriptions/<subscriptionId>/resourceGroups/rg-us1-btech-prdappshared/providers/Microsoft.Compute/galleries/simgus1prdappimages01/images/Windows11appapp"
+    virtual_machine:
+      tags:
+        environment: "Production"
+        organization: "btech"
+      resource_group_key: "rg_app"
+      os_type: windows
+      provision_vm_agent: true
+
+      network_interfaces:
+        nic0:
+          vm_setting_key: "windows"
+          vnet_key: "app_vnet"
+          subnet_key: "subnet_appshared2"
+          primary: true
+          naming_convention:
+            postfix: "01"
+          enable_ip_forwarding: false
+
+      virtual_machine_settings:
+        windows:
+          naming_convention:
+            name_mask: "{object_name_prefix}{object_count}"
+          # name: "us1prditop-0"
+          size: "Standard_B8ms"
+          admin_username: "" # Leave Blank - Supplied In Secrets
+          admin_password: "" # Leave Blank - Supplied In Secrets
+          license_type: "Windows_Client"
+          network_interface_keys: ["nic0"]
+
+          os_disk:
+            naming_convention:
+              postfix: "01"
+            caching: "ReadWrite"
+            storage_account_type: "StandardSSD_LRS"
+
+          ### !!! Enable This If Using AAD Join or Domain Join Will Fail !!! ###
+          identity:
+            type: "SystemAssigned"
+
+    virtual_machine_extensions:
+      AADLoginForWindows:
+        enabled: false
+        name: "AADLoginForWindows"
+      app_DSC_Extension:
+        enabled: true
+        name: "app_DSC_Extension"
+        modulesURL: "https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_09-08-2022.zip"
+        host_pool:
+          host_pool_key: "hostpool_app"
+          getTokenFromKeyvault: false
+      LegacyADLoginForWindows:
+        enabled: true
+        name: "LegacyADLoginForWindows"
+        ad_domain_name: "<domainName>"
+        ad_ou_path: "OU=app,OU=Pooled,OU=Prod,OU=app,OU=Azure,OU=Data Center,DC=btech,DC=harley-davidson,DC=com"
+        domain_username: "GET_FROM_VARIABLE_GROUP"
+        domain_password: "GET_FROM_VARIABLE_GROUP"
+      AmdGpuDriverWindows:
+        enabled: false
+      custom_script:
+        enabled: false
+
+role_assignments:
+
+  ra_app_app_group:
+    scope: "appgroup"
+    scope_key: "appgroup_app"
+    mode: "built-in"
+    enabled: true
+    role_mappings:
+      "Desktop Virtualization User":
+        object_ids:
+          id1: "6f5fdf92-5181-4d3b-9075-c75739a800d3"
+
+  ra_app_storage:
+    scope: "storage"
+    scope_key: "st_app"
+    mode: "built-in"
+    enabled: true
+    role_mappings:
+      "Storage File Data SMB Share Contributor":
+        object_ids:
+          id1: "6f5fdf92-5181-4d3b-9075-c75739a800d3"
